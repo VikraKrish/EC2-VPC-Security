@@ -1,4 +1,5 @@
-//Terraform Configuration and AWS Provider
+//Terraform Configuration and AWS Provider 
+/*This section specifies the required version of Terraform and declares the AWS provider with the desired AWS region (us-west-2).*/
 terraform {
     required_version = ">= 1.0.0"
 }
@@ -10,6 +11,7 @@ provider "aws" {
 }
 
 //TLS Private Key and AWS Key Pair
+/*Here, a TLS private key with RSA algorithm and 4096 bits is generated. This key is then used to create an AWS key pair named "server-deployer-key."*/
 resource "tls_private_key" "this" {
     algorithm = "RSA"
     rsa_bits = 4096
@@ -20,6 +22,7 @@ resource "aws_key_pair" "server-key" {
     public_key = tls_private_key.this.public_key_openssh
 }
 // VPC Creation
+/*This section creates a Virtual Private Cloud (VPC) with the specified CIDR block (172.16.0.0/16) and enables DNS hostnames. Tags are also applied to the VPC.*/
 
 variable "vpc_name" {
     description = "name of the vpc"
@@ -36,6 +39,7 @@ resource "aws_vpc" "new_vpc" {
 }
 
 //User Data Scripts
+/*Two local blocks define Bash scripts as user data for instances. One script is for setting up a Golang app, and the other is for setting up a Redis database.*/
 locals {
     golang_user_data = <<EOF
 #!/bin/bash
@@ -59,6 +63,7 @@ EOF
 }
 
 // Internet Gateway and Route Table
+/*This section creates an Internet Gateway and associates a route table with a default route to the Internet. The Internet Gateway is tagged with "IGW-Test-VPC."*/
 resource "aws_internet_gateway" "my_igw" {
     vpc_id = aws_vpc.new_vpc.id
 
@@ -80,6 +85,7 @@ resource "aws_route_table" "igw_router" {
     }
 }
 // Subnet and Security Group
+/*Here, a subnet is created with a specified CIDR block, availability zone, and public IP mapping. A security group is defined to allow SSH and Redis traffic. The security group is associated with the previously created VPC.*/
 resource "aws_subnet" "new_sub" {
     vpc_id = aws_vpc.new_vpc.id
     cidr_block = "172.16.10.0/24"
@@ -126,7 +132,7 @@ resource "aws_security_group" "allow-ssh" {
 }
 
 //Network Interfaces
-
+/*Two network interfaces are created, one for the Golang app and the other for Redis. Both are associated with the previously created subnet. The Golang app network interface has a private IP of 172.16.10.100 and the Redis network interface has a private IP of 172.16.10.101. Both network interfaces are associated with the previously created security group.*/
 resource "aws_network_interface" "goo" {
     subnet_id = aws_subnet.new_sub.id
     private_ips = ["172.16.10.100"]
@@ -146,6 +152,7 @@ resource "aws_network_interface" "redis" {
 }
 
 // EC2 Instances
+/*Two EC2 instances are created, one for the Golang app and the other for Redis, with specified AMIs, instance types, key pairs, user data scripts, and network interfaces. The Golang app instance is dependent on the Redis instance.*/
 resource "aws_instance" "golang-app" {
     ami = "ami-053bc2e89490c5ab7"
     instance_type = "t2.micro"
@@ -179,7 +186,8 @@ resource "aws_instance" "redis-db" {
         device_index = 0
     }
 }
-
+//Local File and Outputs
+/*A local file resource saves the private key to a file, and outputs provide information about the created resources, including private DNS, public IPs, and private IPs. The private key file is saved to the current directory. The outputs are used in the next section to configure the attacker machine.*/
 resource "local_file" "aws_key" {
     content = tls_private_key.this.private_key_pem
     filename = "test-key.pem"
@@ -206,7 +214,7 @@ output "public_golang_ip" {
 }
 
 //S3 Bucket and Flow Logs
-
+/*This section generates a random string for an S3 bucket name, creates an S3 bucket for VPC flow logs, and configures VPC flow logs to send logs to that S3 bucket.*/
 resource "random_string" "bucket_name" {
     length = 10
     special = false
